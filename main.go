@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/models"
+	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/pagination"
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
 	_ "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log"
+	"math"
 	"net/http"
 	"os"
 )
@@ -19,18 +21,13 @@ type Repository struct {
 }
 
 func (r *Repository) CreateBook(context *fiber.Ctx) error {
-	// 1. Создаём пустую структуру Book
 	book := &models.Book{}
 
-	// 2. Парсим тело HTTP-запроса в структуру book
 	if err := context.BodyParser(&book); err != nil {
-		// Если ошибка парсинга - возвращаем статус 422 и сообщение об ошибке
-		context.Status(http.StatusUnprocessableEntity).JSON(
+		return context.Status(http.StatusUnprocessableEntity).JSON(
 			&fiber.Map{"message": "CreateBook : request failed"})
-		return err
 	}
 
-	// 3. Создаём запись в базе данных через GORM
 	if err := r.DB.Create(&book).Error; err != nil {
 		// Если ошибка создания - возвращаем статус 400
 		context.Status(http.StatusBadRequest).JSON(
@@ -38,25 +35,29 @@ func (r *Repository) CreateBook(context *fiber.Ctx) error {
 		return err
 	}
 
-	// 4. Если всё успешно - возвращаем статус 200 и сообщение об успехе
 	context.Status(http.StatusOK).JSON(
 		&fiber.Map{"message": "book added"})
 
 	return nil
 }
 
-func (r *Repository) GetBooks(context *fiber.Ctx) error {
-	books := &[]models.Book{}
+func (r *Repository) CreateBooks(context *fiber.Ctx) error {
+	books := []models.Book{}
 
-	if err := r.DB.Find(books); err != nil {
-		context.Status(http.StatusBadRequest).JSON(
-			&fiber.Map{"message": "not get books"})
+	if err := context.BodyParser(&books); err != nil {
+		return context.Status(http.StatusUnprocessableEntity).JSON(
+			&fiber.Map{"message": "CreateBooks: invalid request format"})
+	}
+
+	if err := r.DB.Create(&books).Error; err != nil {
+		return context.Status(http.StatusBadRequest).JSON(
+			&fiber.Map{"message": "failed to create books"})
 	}
 
 	context.Status(http.StatusOK).JSON(
 		&fiber.Map{
-			"message": "books fetched successfully",
-			"data":    books,
+			"message": "books added successfully",
+			"count":   len(books),
 		})
 
 	return nil
@@ -119,11 +120,44 @@ func (r *Repository) DeleteBook(context *fiber.Ctx) error {
 	return nil
 }
 
+func paginate(value interface{}, pagination *pagination.Pagination, db *gorm.DB) func(db *gorm.DB) *gorm.DB {
+	var totalRows int64
+	db.Model(value).Count(&totalRows)
+
+	pagination.TotalRows = totalRows
+	totalPages := int(math.Ceil(float64(totalRows) / float64(pagination.Limit)))
+	pagination.TotalPages = totalPages
+
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Offset(pagination.GetOffset()).Limit(pagination.GetLimit()).Order(pagination.GetSort())
+	}
+}
+
+func (r *Repository) GetBooks(context *fiber.Ctx) error {
+	var books []models.Book
+
+	pagination := pagination.Pagination{
+		Limit: context.QueryInt("limit", 5),
+		Page:  context.QueryInt("page", 1),
+		Sort:  context.Query("sort", "id asc"),
+	}
+
+	r.DB.Scopes(paginate(books, &pagination, r.DB)).Find(&books)
+
+	pagination.Rows = books
+
+	return context.Status(http.StatusOK).JSON(&fiber.Map{
+		"message": "book pagination successfully",
+		"data":    pagination,
+	})
+}
+
 func (r *Repository) SetupRoutes(app *fiber.App) {
 	api := app.Group("/api")
 	api.Get("/books", r.GetBooks)
 	api.Get("/get_books/:id", r.GetBookById)
-	api.Post("/create_books", r.CreateBook)
+	api.Post("/create_book", r.CreateBook)
+	api.Post("/create_books", r.CreateBooks)
 	api.Delete("/delete_book/:id", r.DeleteBook)
 }
 
