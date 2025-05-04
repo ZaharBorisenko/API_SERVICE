@@ -1,5 +1,10 @@
 package pagination
 
+import (
+	"gorm.io/gorm"
+	"math"
+)
+
 type Pagination struct {
 	Limit      int         `json:"limit,omitempty;query:limit"`
 	Page       int         `json:"page,omitempty;query:page"`
@@ -32,4 +37,17 @@ func (p *Pagination) GetSort() string {
 		p.Sort = "Id desc"
 	}
 	return p.Sort
+}
+
+func (p *Pagination) Paginate(value interface{}, db *gorm.DB) func(db *gorm.DB) *gorm.DB {
+	var totalRows int64
+	db.Model(value).Count(&totalRows)
+
+	p.TotalRows = totalRows
+	totalPages := int(math.Ceil(float64(totalRows) / float64(p.GetLimit())))
+	p.TotalPages = totalPages
+
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Offset(p.GetOffset()).Limit(p.GetLimit()).Order(p.GetSort())
+	}
 }
