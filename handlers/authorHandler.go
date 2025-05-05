@@ -5,6 +5,7 @@ import (
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/models"
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/pagination"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"net/http"
 )
@@ -37,15 +38,9 @@ func (a *AuthorHandler) GetAuthor(context *fiber.Ctx) error {
 }
 func (a *AuthorHandler) GetAuthorById(context *fiber.Ctx) error {
 	author := models.Author{}
-	id := context.Params("id")
+	id, _ := uuid.Parse(context.Params("id"))
 
-	if id == "" {
-		return context.Status(http.StatusBadRequest).JSON(&fiber.Map{
-			"message": "id cannot be empty",
-		})
-	}
-
-	result := a.DB.Preload("Books").Find(&author, id)
+	result := a.DB.Preload("Books").Where("id = ?", id).First(&author)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -84,14 +79,9 @@ func (a *AuthorHandler) CreateAuthor(context *fiber.Ctx) error {
 }
 func (a *AuthorHandler) DeleteAuthor(context *fiber.Ctx) error {
 	author := models.Author{}
-	id := context.Params("id")
+	id, _ := uuid.Parse(context.Params("id"))
 
-	if id == "" {
-		context.Status(http.StatusBadRequest).JSON(
-			&fiber.Map{"message": "id cannot be empty"})
-	}
-
-	err := a.DB.Delete(author, id)
+	err := a.DB.Where("id = ?", id).Delete(&author)
 
 	if err.Error != nil {
 		context.Status(http.StatusBadRequest).JSON(&fiber.Map{
