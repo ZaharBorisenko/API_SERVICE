@@ -95,10 +95,30 @@ func (a *AuthorHandler) DeleteAuthor(context *fiber.Ctx) error {
 
 }
 
+func (a *AuthorHandler) UpdateAuthor(context *fiber.Ctx) error {
+	authorUpdate := models.Author{}
+	id, _ := uuid.Parse(context.Params("id"))
+	if err := context.BodyParser(&authorUpdate); err != nil {
+		return context.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "Invalid request format",
+		})
+	}
+
+	result := a.DB.Where("id = ?", id).Updates(&authorUpdate)
+
+	if result.Error != nil {
+		return context.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"messages": "Invalid request",
+		})
+	}
+	return context.Status(http.StatusOK).JSON(
+		&fiber.Map{"message": "author updated successfully", "data": authorUpdate})
+}
+
 func (a *AuthorHandler) SetupRoutes(app *fiber.App) {
 	api := app.Group("/api/authors")
 	api.Get("/", a.GetAuthor)
 	api.Get("/:id", a.GetAuthorById)
-	api.Post("/create", a.CreateAuthor)
+	api.Put("/update/:id", a.UpdateAuthor)
 	api.Delete("/delete/:id", a.DeleteAuthor)
 }

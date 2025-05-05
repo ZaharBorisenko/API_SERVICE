@@ -149,10 +149,32 @@ func (r *BookHandler) DeleteBook(context *fiber.Ctx) error {
 	return nil
 }
 
+func (r *BookHandler) UpdateBook(context *fiber.Ctx) error {
+	updateBook := models.Book{}
+	id, _ := uuid.Parse(context.Params("id"))
+
+	if err := context.BodyParser(&updateBook); err != nil {
+		return context.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"message": "Invalid request format",
+		})
+	}
+
+	result := r.DB.Where("id = ?", id).Updates(&updateBook)
+
+	if result.Error != nil {
+		return context.Status(http.StatusBadRequest).JSON(&fiber.Map{
+			"messages": "Invalid request",
+		})
+	}
+	return context.Status(http.StatusOK).JSON(
+		&fiber.Map{"message": "book updated successfully", "data": updateBook})
+}
+
 func (r *BookHandler) SetupRoutes(app *fiber.App) {
 	api := app.Group("/api/books")
 	api.Get("/", r.GetBooks)
 	api.Get("/:id", r.GetBookById)
 	api.Post("/create", r.CreateBook)
+	api.Put("/update/:id", r.UpdateBook)
 	api.Delete("/delete/:id", r.DeleteBook)
 }
