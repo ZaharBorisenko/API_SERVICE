@@ -39,7 +39,7 @@ func (r *BookHandler) GetBooks(context *fiber.Ctx) error {
 
 	if err := r.DB.
 		Scopes(pagination.Paginate(books, r.DB)).
-		Preload("Author").
+		Preload("Author").Preload("Categories").
 		Find(&books).Error; err != nil {
 		return context.Status(http.StatusInternalServerError).JSON(&fiber.Map{
 			"message": "failed to fetch books",
@@ -72,7 +72,12 @@ func (r *BookHandler) GetBookById(context *fiber.Ctx) error {
 	book := models.Book{}
 	id, _ := uuid.Parse(context.Params("id"))
 
-	result := r.DB.Preload("Author").Where("id = ?", id).First(&book)
+	result := r.DB.
+		Preload("Author").
+		Preload("Categories", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, name")
+		}).
+		First(&book, "id = ?", id)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -90,44 +95,71 @@ func (r *BookHandler) GetBookById(context *fiber.Ctx) error {
 		"data":    dto.ToBookResponse(book),
 	})
 }
+
 func (r *BookHandler) CreateBook(context *fiber.Ctx) error {
-	singleBook := models.Book{}
-	if err := context.BodyParser(&singleBook); err == nil {
-		if err := r.DB.Create(&singleBook).Error; err != nil {
-			return context.Status(http.StatusBadRequest).JSON(
-				&fiber.Map{"message": "failed to create book", "error": err.Error()})
-		}
 
-		return context.Status(http.StatusCreated).JSON(
-			&fiber.Map{
-				"message": "book created successfully",
-				"data":    singleBook,
-			})
-	}
-
-	multipleBooks := []models.Book{}
-	if err := context.BodyParser(&multipleBooks); err != nil {
-		return context.Status(http.StatusUnprocessableEntity).JSON(
-			&fiber.Map{"message": "invalid request format", "error": err.Error()})
-	}
-
-	if len(multipleBooks) == 0 {
-		return context.Status(http.StatusBadRequest).JSON(
-			&fiber.Map{"message": "empty books list provided"})
-	}
-
-	if err := r.DB.Create(&multipleBooks).Error; err != nil {
-		return context.Status(http.StatusBadRequest).JSON(
-			&fiber.Map{"message": "failed to create books", "error": err.Error()})
-	}
-
-	return context.Status(http.StatusCreated).JSON(
-		&fiber.Map{
-			"message": "books created successfully",
-			"count":   len(multipleBooks),
-			"data":    multipleBooks,
+	var request dto.CreateBookRequest
+	if err := context.BodyParser(&request); err != nil {
+		return context.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "invalid request format",
+			"error":   err.Error(),
 		})
+	}
+
+	// Создаем книгу
+	book := models.Book{
+		AuthorID:    request.AuthorID,
+		Title:       request.Title,
+		CoverURL:    request.CoverURL,
+		Publisher:   request.Publisher,
+		Description: request.Description,
+		NumberPages: request.NumberPages,
+	}
+
+	// Находим категории по их ID
+	var categories []models.Categories
+	if len(request.CategoryIDs) > 0 {
+		if err := r.DB.Where("id IN ?", request.CategoryIDs).Find(&categories).Error; err != nil {
+			return context.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"message": "failed to find categories",
+				"error":   err.Error(),
+			})
+		}
+	}
+
+	// Создаем книгу в базе данных
+	if err := r.DB.Create(&book).Error; err != nil {
+		return context.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "failed to create book",
+			"error":   err.Error(),
+		})
+	}
+
+	// Добавляем связи с категориями
+	if len(categories) > 0 {
+		if err := r.DB.Model(&book).Association("Categories").Append(categories); err != nil {
+			return context.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"message": "failed to associate categories with book",
+				"error":   err.Error(),
+			})
+		}
+	}
+
+	// Загружаем книгу с категориями для ответа
+	var createdBook models.Book
+	if err := r.DB.Preload("Categories").First(&createdBook, book.ID).Error; err != nil {
+		return context.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "failed to fetch created book",
+			"error":   err.Error(),
+		})
+	}
+
+	return context.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "book created successfully",
+		"data":    createdBook,
+	})
 }
+
 func (r *BookHandler) DeleteBook(context *fiber.Ctx) error {
 	book := models.Book{}
 	id, _ := uuid.Parse(context.Params("id"))

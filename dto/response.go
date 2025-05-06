@@ -6,18 +6,23 @@ import (
 	"time"
 )
 
+type CategoryResponse struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
 type BookResponse struct {
-	Author      AuthorPartial `json:"author"`
-	ID          uuid.UUID     `json:"id"`
-	AuthorID    uuid.UUID     `json:"author_id"`
-	Title       string        `json:"title"`
-	Category    string        `json:"category"`
-	CoverURL    string        `json:"cover_url"`
-	Publisher   string        `json:"publisher"`
-	Description string        `json:"description"`
-	NumberPages uint          `json:"number_pages"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	Author      AuthorPartial      `json:"author"`
+	ID          uuid.UUID          `json:"id"`
+	AuthorID    uuid.UUID          `json:"author_id"`
+	Title       string             `json:"title"`
+	Categories  []CategoryResponse `json:"categories"`
+	CoverURL    string             `json:"cover_url"`
+	Publisher   string             `json:"publisher"`
+	Description string             `json:"description"`
+	NumberPages uint               `json:"number_pages"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
 }
 
 type AuthorPartial struct {
@@ -39,6 +44,15 @@ type Pagination struct {
 }
 
 func ToBookResponse(book models.Book) BookResponse {
+
+	categories := make([]CategoryResponse, len(book.Categories))
+	for i, category := range book.Categories {
+		categories[i] = CategoryResponse{
+			ID:   category.ID,
+			Name: category.Name,
+		}
+	}
+
 	return BookResponse{
 		Author: AuthorPartial{
 			FirstName: book.Author.FirstName,
@@ -48,7 +62,7 @@ func ToBookResponse(book models.Book) BookResponse {
 		ID:          book.ID,
 		AuthorID:    book.AuthorID,
 		Title:       book.Title,
-		Category:    book.Category,
+		Categories:  categories,
 		CoverURL:    book.CoverURL,
 		Publisher:   book.Publisher,
 		Description: book.Description,

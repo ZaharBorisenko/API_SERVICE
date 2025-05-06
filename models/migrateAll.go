@@ -9,5 +9,8 @@ func MigrateAll(db *gorm.DB) error {
 	if err := db.AutoMigrate(&Book{}); err != nil {
 		return err
 	}
+	if err := db.AutoMigrate(&Categories{}); err != nil {
+		return err
+	}
 	return nil
 }

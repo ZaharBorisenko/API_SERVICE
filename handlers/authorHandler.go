@@ -118,6 +118,7 @@ func (a *AuthorHandler) UpdateAuthor(context *fiber.Ctx) error {
 func (a *AuthorHandler) SetupRoutes(app *fiber.App) {
 	api := app.Group("/api/authors")
 	api.Get("/", a.GetAuthor)
+	api.Post("/create", a.CreateAuthor)
 	api.Get("/:id", a.GetAuthorById)
 	api.Put("/update/:id", a.UpdateAuthor)
 	api.Delete("/delete/:id", a.DeleteAuthor)

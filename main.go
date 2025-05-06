@@ -37,9 +37,11 @@ func main() {
 
 	bookHandler := handlers.NewBookHandler(db)
 	authorHandler := handlers.NewAuthorHandler(db)
+	categoriesHandler := handlers.NewCategoryHandler(db)
 
 	bookHandler.SetupRoutes(app)
 	authorHandler.SetupRoutes(app)
+	categoriesHandler.SetupRoutes(app)
 
 	log.Fatal(app.Listen(":8080"))
 }
