@@ -33,12 +33,10 @@ func (a *AuthorHandler) GetAuthor(context *fiber.Ctx) error {
 	query := a.DB.Preload("Books").Scopes(pagination.Paginate(authors, a.DB))
 
 	if search := strings.TrimSpace(s); search != "" {
+		searchTerms := strings.Join(strings.Fields(search), " & ")
 		query = query.Where(
-			"last_name % ? OR first_name % ? OR "+
-				"to_tsvector('russian', last_name || ' ' || first_name) @@ to_tsquery('russian', ?)",
-			search,
-			search,
-			strings.ReplaceAll(search, " ", " & "),
+			"to_tsvector('russian', first_name || ' ' || last_name) @@ to_tsquery('russian', ?)",
+			searchTerms+":*",
 		)
 	}
 
