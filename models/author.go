@@ -11,6 +11,7 @@ type Author struct {
 	LastName    string     `gorm:"unique;not null;type:varchar(100);default:null" json:"last_name"`
 	BirthDate   *time.Time `json:"birth_date"`
 	DeathDate   *time.Time `json:"death_date"`
+	Search      string     `gorm:"-:migration;<-:false"`
 	Nationality string     `json:"nationality" gorm:"size:50"`
 	Biography   string     `json:"biography" gorm:"type:text"`
 	Website     string     `json:"website" gorm:"size:255"`

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"net/http"
+	"strings"
 )
 
 type AuthorHandler struct {
@@ -19,7 +20,9 @@ func NewAuthorHandler(db *gorm.DB) *AuthorHandler {
 }
 
 func (a *AuthorHandler) GetAuthor(context *fiber.Ctx) error {
-	author := []models.Author{}
+	authors := []models.Author{}
+
+	s := context.Query("search")
 
 	pagination := pagination.Pagination{
 		Limit: context.QueryInt("limit", 10),
@@ -27,8 +30,25 @@ func (a *AuthorHandler) GetAuthor(context *fiber.Ctx) error {
 		Sort:  context.Query("sort", "id asc"),
 	}
 
-	a.DB.Scopes(pagination.Paginate(author, a.DB)).Preload("Books").Find(&author)
-	pagination.Rows = author
+	query := a.DB.Preload("Books").Scopes(pagination.Paginate(authors, a.DB))
+
+	if search := strings.TrimSpace(s); search != "" {
+		query = query.Where(
+			"last_name % ? OR first_name % ? OR "+
+				"to_tsvector('russian', last_name || ' ' || first_name) @@ to_tsquery('russian', ?)",
+			search,
+			search,
+			strings.ReplaceAll(search, " ", " & "),
+		)
+	}
+
+	if err := query.Find(&authors).Error; err != nil {
+		return context.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Database query failed",
+		})
+	}
+
+	pagination.Rows = authors
 
 	return context.Status(http.StatusOK).JSON(&fiber.Map{
 		"message": "author pagination successfully",
@@ -36,6 +56,7 @@ func (a *AuthorHandler) GetAuthor(context *fiber.Ctx) error {
 	})
 
 }
+
 func (a *AuthorHandler) GetAuthorById(context *fiber.Ctx) error {
 	author := models.Author{}
 	id, _ := uuid.Parse(context.Params("id"))
