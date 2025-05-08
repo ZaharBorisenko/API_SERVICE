@@ -23,11 +23,20 @@ func (a *AuthorHandler) GetAuthor(context *fiber.Ctx) error {
 	authors := []models.Author{}
 
 	s := context.Query("search")
+	sort := context.Query("sort", "id")
+	order := "ASC"
+
+	if strings.HasPrefix(sort, "-") {
+		sort = sort[1:]
+		order = "DESC"
+	}
+
+	resultSort := sort + " " + order
 
 	pagination := pagination.Pagination{
 		Limit: context.QueryInt("limit", 10),
 		Page:  context.QueryInt("page", 1),
-		Sort:  context.Query("sort", "id asc"),
+		Sort:  resultSort,
 	}
 
 	query := a.DB.Preload("Books").Scopes(pagination.Paginate(authors, a.DB))
