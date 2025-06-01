@@ -1,20 +1,41 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/handlers"
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/models"
 	"github.com/ZaharBorisenko/GOLAND_API_BOOKS/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 	_ "gorm.io/driver/sqlite"
 	"log"
 	"os"
 )
 
+var ctx = context.Background()
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal("No .env file found")
 	}
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "localhost:6379" // fallback
+	}
+
+	cache := redis.NewClient(&redis.Options{
+		Addr:     redisURL,
+		Password: "",
+		DB:       0,
+	})
+
+	// Проверка подключения к Redis
+	if _, err := cache.Ping(ctx).Result(); err != nil {
+		log.Fatalf("Ошибка подключения к Redis: %v", err)
+	}
+	fmt.Println("Подключение к Redis успешно")
 
 	config := &storage.Config{
 		Host:     os.Getenv("DB_HOST"),
